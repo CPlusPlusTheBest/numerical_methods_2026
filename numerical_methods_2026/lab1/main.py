@@ -1,5 +1,5 @@
-import requests
 import numpy as np
+import requests
 import matplotlib.pyplot as plt
 
 def fetch_elevation_data(url):
