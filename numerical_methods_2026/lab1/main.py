@@ -172,40 +172,64 @@ if __name__ == "__main__":
     print("\nGRADIENT ANALYSIS")
     analyze_gradients(distances, elevations)
 
-    # --- 3. Stage 2: Comparative Visualization & Tables ---
-    print("\nSTAGE 2: COMPARATIVE ANALYSIS (10, 15, 20 NODES)")
+    # --- 3. Stage 2: Comparative Visualization & Error Analysis ---
+    print("\nSTAGE 2: COMPARATIVE ANALYSIS & ERROR CALCULATION")
     node_counts = [10, 15, 20]
-    fig, axs = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
+
+    # Створюємо два вікна: одне для графіків сплайнів, інше для похибок
+    fig1, axs = plt.subplots(3, 1, figsize=(10, 15), sharex=True)
+    fig2, ax_err = plt.subplots(figsize=(10, 6))
+
+    colors = ['tab:blue', 'tab:orange', 'tab:green']
+
+
+    def evaluate_spline(x_val, x_nodes, a, b, c, d):
+        """Обчислює значення сплайна в точці x_val"""
+        # Знаходимо індекс сегмента
+        if x_val >= x_nodes[-1]: return a[-1]  # крайня точка
+        idx = np.searchsorted(x_nodes, x_val) - 1
+        idx = max(0, min(idx, len(a) - 1))
+
+        dx = x_val - x_nodes[idx]
+        return a[idx] + b[idx] * dx + c[idx] * dx ** 2 + d[idx] * dx ** 3
+
+
+    print(f"\n{'Nodes':<10} | {'Max Error (m)':<15} | {'Mean Abs Error (m)':<20}")
+    print("-" * 50)
 
     for i, count in enumerate(node_counts):
-        # Select a subset of nodes from the original data
-        idx = np.linspace(0, len(distances) - 1, count, dtype=int)
-        x_nodes, y_nodes = distances[idx], elevations[idx]
-
-        # Calculate coefficients for this specific subset
+        idx_nodes = np.linspace(0, len(distances) - 1, count, dtype=int)
+        x_nodes, y_nodes = distances[idx_nodes], elevations[idx_nodes]
         a, b, c, d = get_coefficients(x_nodes, y_nodes)
 
-        # Print numerical results in the console
-        print_coeff_table(a, b, c, d, f"Coefficients for {count} Nodes")
-
-        # Step-by-step plotting for each spline segment
+        # 1. Будуємо графік сплайна
         for j in range(len(x_nodes) - 1):
-            # Create 50 points between two nodes for a smooth curve
             xf = np.linspace(x_nodes[j], x_nodes[j + 1], 50)
             dx = xf - x_nodes[j]
-
-            # S_j(x) = a_j + b_j(dx) + c_j(dx)^2 + d_j(dx)^3
             yf = a[j] + b[j] * dx + c[j] * dx ** 2 + d[j] * dx ** 3
-            axs[i].plot(xf, yf, 'b-', linewidth=1.5)
+            axs[i].plot(xf, yf, color=colors[i], linewidth=1.5)
 
-        # Overlay original data points (red) and selected nodes (black X)
-        axs[i].scatter(distances, elevations, c='red', s=10, alpha=0.3, label='Original Data')
-        axs[i].scatter(x_nodes, y_nodes, c='black', marker='x', s=40, label='Selected Nodes')
+        axs[i].scatter(distances, elevations, c='red', s=10, alpha=0.3)
+        axs[i].scatter(x_nodes, y_nodes, c='black', marker='x', s=40)
         axs[i].set_title(f"Spline Interpolation with {count} Nodes")
-        axs[i].set_ylabel("Elevation (m)")
-        axs[i].legend(loc='upper right')
         axs[i].grid(True, alpha=0.3)
 
-    plt.xlabel("Distance (m)")
-    plt.tight_layout()
+        # 2. Розрахунок похибки для ВСІХ оригінальних точок
+        y_spline = np.array([evaluate_spline(x, x_nodes, a, b, c, d) for x in distances])
+        errors = np.abs(elevations - y_spline)
+
+        # Виведення в таблицю (консоль)
+        print(f"{count:<10} | {np.max(errors):<15.4f} | {np.mean(errors):<20.4f}")
+
+        # 3. Лінія похибки графіка
+        ax_err.plot(distances, errors, label=f'{count} вузлів', color=colors[i])
+
+    # Налаштування графіка похибок
+    ax_err.set_title("Похибка апроксимації (Абсолютна)")
+    ax_err.set_xlabel("Відстань (м)")
+    ax_err.set_ylabel("Похибка (м)")
+    ax_err.legend()
+    ax_err.grid(True)
+
+    fig1.tight_layout()
     plt.show()
